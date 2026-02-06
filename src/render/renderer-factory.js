@@ -1,13 +1,19 @@
 const htmlRenderer = require('./html-table-renderer');
+const htmlTableRenderer = require('./html-table-renderer');
 const imageRenderer = require('./image-renderer');
 
 class RendererFactory {
-	getRenderer(type, mode) {
-		if (mode === 'image') {
+	getRenderer(type, renderMode) {
+		if (renderMode === 'image') {
 			return imageRenderer;
 		}
-		// Default to HTML for tables, or if mode is html
-		return htmlRenderer;
+		if (type === 'table' && renderMode === 'html') {
+			return htmlTableRenderer;
+		}
+		// ... extend for others
+		throw new Error(
+			`No renderer found for type=${type}, mode=${renderMode}`
+		);
 	}
 }
 

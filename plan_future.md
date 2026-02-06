@@ -10,42 +10,28 @@ Tài liệu này ghi nhận trạng thái phát triển và lộ trình tiếp t
 
 -   **Core Engine**: Config Loader, MongoDB Aggregation, Excel Generator (.xlsx/.xlsb), Render Block Engine.
 -   **Scheduler**: Cron-based scheduling.
--   **Database Queue**: MongoDB-based Job Queue với khả năng **Horizontal Scaling** (chạy nhiều Worker song song).
--   **Advanced Mail**:
-    -   Hỗ trợ SMTP (Nodemailer).
-    -   Hỗ trợ **Fallback EXE** (gọi tool ngoài nếu SMTP lỗi).
--   **Resiliency (Độ bền vững)**:
-    -   **Retry Logic**: Tự động thử lại khi truy vấn Data lỗi.
-    -   **Queue Recovery**: Tự động quét và đánh dấu lỗi các job bị treo (Pending/Processing) quá 90 phút.
-    -   **Persistent Logs**: Lưu lịch sử chạy đầy đủ.
--   **API Server**: Phục vụ xem/sửa config và kích hoạt báo cáo.
+-   **Database Queue**: MongoDB-based Job Queue với khả năng Scaling.
+-   **Mail System**: SMTP (Nodemailer) & Fallback EXE.
+-   **Resiliency**: Retry Mechanism, Queue Recovery, Persistent Logs.
+-   **API Server**: Express API.
 
 ---
 
-## 2. Hạn chế còn tồn tại (Limitations)
+## 2. Roadmap tiếp theo
 
-### 2.1. Excel Chart Rendering
+### Phase 2.1: Snapshot Service (Excel Chart Rendering) - **IN PROGRESS**
 
--   **Vấn đề**: `exceljs` không hỗ trợ render Chart ra ảnh.
--   **Hiện trạng**: Email body chưa có biểu đồ thật (chỉ là placeholder).
--   **Giải pháp (Phase 2)**: Tích hợp thư viện vẽ chart phía server (ChartJS Canvas) hoặc Headless Browser.
-
----
-
-## 3. Roadmap tiếp theo
-
-### Phase 2: Advanced Rendering (Biểu đồ) - **NEXT**
-
--   [ ] **Chart Rendering**: Sử dụng `chartjs-node-canvas` để vẽ biểu đồ từ dữ liệu JSON và nhúng vào Email.
--   [ ] **Dynamic Report Params**: API hỗ trợ truyền tham số động (VD: `runtimeParams`) khi gọi Trigger Run.
+-   **Kiến trúc**: Microservice chạy trên Windows Server, sử dụng .NET Framework 4.8.
+-   **Công nghệ**: C# + Excel COM Interop.
+-   **Nhiệm vụ**: Nhận file Excel -> Mở bằng Excel -> Export Chart ra ảnh -> Trả về cho Node.js Engine.
+-   **Giao tiếp**: HTTP API (Node.js gọi Localhost hoặc Server IP).
 
 ### Phase 4: Full Web UI (Frontend)
 
--   [ ] Xây dựng giao diện Dashboard (React/Vue) kết nối với API Server đã có.
--   [ ] Tính năng kéo thả Config Builder.
--   [ ] Xem trước mẫu báo cáo (Preview).
+-   [ ] Xây dựng giao diện Dashboard (React/Vue).
+-   [ ] Config Builder & Preview.
 
-### Phase 5: Production Readiness (DevOps)
+### Phase 5: Production Readiness
 
--   [ ] **Dockerize**: Đóng gói Scheduler, Worker, API thành các container riêng biệt.
--   [ ] **Monitoring**: Tích hợp Prometheus/Grafana để theo dõi Queue Lag và Error Rate.
+-   [ ] **Monitoring**: Prometheus/Grafana.
+-   [ ] **Installer**: Đóng gói toàn bộ (Node.js + C# Service) thành 1 bộ cài Windows (MSI).

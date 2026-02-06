@@ -9,6 +9,10 @@ const logger = require('../logger');
 
 const auditLogger = require('../mongo/audit-logger');
 
+const snapshotClient = require('./snapshot-client');
+const path = require('path');
+const os = require('os');
+
 class ReportPipeline {
 	async run(configPath, runtimeParams = {}) {
 		logger.info(`Starting pipeline with config: ${configPath}`);
@@ -43,7 +47,59 @@ class ReportPipeline {
 			// 4. Generate Excel
 			const excelPath = await excelGenerator.generate(config, datasets);
 
-			// 5. Render Blocks
+			// 4.5 [NEW] Process Snapshots (if any blocks need image rendering)
+			const snapshotItems = [];
+			const inlineAttachments = [];
+
+			if (config.render_blocks) {
+				for (const block of config.render_blocks) {
+					if (block.render === 'image') {
+						// Assumption: Block options contain 'chartName' or 'sheetName' if needed.
+						// If type is 'chart', we use block.id as chart name or specific option.
+
+						const chartName =
+							block.options && block.options.chartName
+								? block.options.chartName
+								: block.id;
+						const sheetName =
+							block.options && block.options.sheetName
+								? block.options.sheetName
+								: block.sheet;
+
+						// Output path
+						const outputPath = path.join(
+							os.tmpdir(),
+							`chart_${block.id}_${Date.now()}.png`
+						);
+
+						if (sheetName) {
+							snapshotItems.push({
+								type:
+									block.type === 'chart' ? 'chart' : 'range',
+								sheet: sheetName,
+								name: chartName,
+								outputPath: outputPath,
+							});
+
+							inlineAttachments.push({
+								cid: block.id,
+								path: outputPath,
+							});
+						} else {
+							logger.warn(
+								`Skipping snapshot for block ${block.id}: missing 'sheetName'`
+							);
+						}
+					}
+				}
+			}
+
+			if (snapshotItems.length > 0) {
+				// Call Service
+				await snapshotClient.requestSnapshots(excelPath, snapshotItems);
+			}
+
+			// 5. Render Blocks (ImageRenderer will just put <img src="cid:id">)
 			const renderedBlocks = await blockEngine.resolveBlocks(
 				config.render_blocks,
 				datasets
@@ -53,7 +109,12 @@ class ReportPipeline {
 			const mailBody = mailRenderer.renderBody(renderedBlocks);
 
 			// 7. Send Mail
-			await mailSender.send(config.mail, mailBody, excelPath);
+			await mailSender.send(
+				config.mail,
+				mailBody,
+				excelPath,
+				inlineAttachments
+			);
 
 			// [NEW] End Audit Log (Success)
 			await auditLogger.logEnd(logId, 'Success');

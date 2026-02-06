@@ -11,14 +11,20 @@ class MailSender {
 	 * @param {Object} mailConfig
 	 * @param {string} htmlBody
 	 * @param {string} attachmentPath
+	 * @param {Array} extraAttachments [{ path, cid }]
 	 */
-	async send(mailConfig, htmlBody, attachmentPath) {
+	async send(mailConfig, htmlBody, attachmentPath, extraAttachments = []) {
 		logger.info(`Preparing to send email to: ${mailConfig.to.join(', ')}`);
 
 		// 1. Try SMTP
 		if (mailConfig.smtp) {
 			try {
-				await this.sendSmtp(mailConfig, htmlBody, attachmentPath);
+				await this.sendSmtp(
+					mailConfig,
+					htmlBody,
+					attachmentPath,
+					extraAttachments
+				);
 				return; // Success
 			} catch (error) {
 				logger.error('SMTP Send Failed', { error: error.message });
@@ -48,7 +54,7 @@ class MailSender {
 		);
 	}
 
-	async sendSmtp(config, htmlBody, attachmentPath) {
+	async sendSmtp(config, htmlBody, attachmentPath, extraAttachments) {
 		const transporter = nodemailer.createTransport({
 			host: config.smtp.host,
 			port: config.smtp.port,
@@ -67,9 +73,20 @@ class MailSender {
 			attachments: [],
 		};
 
+		// Main Attachment (Report Excel)
 		if (config.attach_excel && attachmentPath) {
 			mailOptions.attachments.push({
 				path: attachmentPath,
+			});
+		}
+
+		// Inline Images (Snapshots)
+		if (extraAttachments && extraAttachments.length > 0) {
+			extraAttachments.forEach((att) => {
+				mailOptions.attachments.push({
+					path: att.path,
+					cid: att.cid, // Important for inline embedding
+				});
 			});
 		}
 
