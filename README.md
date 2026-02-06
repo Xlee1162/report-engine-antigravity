@@ -1,86 +1,63 @@
-# Report Engine Framework (Mongo + Excel + Queue)
+# Report Engine Framework (Mongo + Excel + Queue + Snapshot)
 
-Report Engine Framework là một hệ thống **Config-Driven** (điều khiển bằng cấu hình) giúp tự động hóa việc xuất báo cáo từ MongoDB ra Excel và Email. Hệ thống hỗ trợ kiến trúc **Producer-Consumer** với Queue bền vững và API quản lý.
+Report Engine Framework là một hệ thống **Config-Driven** giúp tự động hóa việc xuất báo cáo từ MongoDB ra Excel và Email. Hệ thống hỗ trợ kiến trúc **Producer-Consumer** với Queue bền vững và tích hợp **Snapshot Service** để render biểu đồ Excel.
 
 ## 🚀 Tính năng chính
 
 -   **Config-Driven**: Mọi logic nằm trong file JSON/JS config.
 -   **MongoDB Aggregation**: Xử lý dữ liệu bằng Pipeline mạnh mẽ (có Retry).
--   **Excel Engine**: Hỗ trợ template `.xlsx` (điền data) và `.xlsb` (opaque copy).
--   **Job Queue**: Hàng đợi MongoDB (`job_queue`) bền vững, tự động phục hồi job treo (**Auto Recovery**).
--   **Horizontal Scaling**: Hỗ trợ chạy nhiều Worker song song để xử lý đồng thời.
--   **Advanced Mail**: Gửi mail qua SMTP hoặc tự động **Fallback** sang EXE ngoài (hỗ trợ SSO) nếu SMTP lỗi.
--   **Enterprise API**: API Server để xem/sửa cấu hình và kích hoạt báo cáo từ Web UI.
--   **Persistent Logs**: Lưu lịch sử chạy vào DB để truy vết.
+-   **Excel Engine**: Hỗ trợ template `.xlsx` và `.xlsb`.
+-   **Snapshot Service (New)**: Microservice C# chạy trên Windows giúp render Chart từ Excel ra ảnh (PNG) chính xác 100%.
+-   **Job Queue (Persistent)**: Hàng đợi MongoDB, hỗ trợ Scaling và Recovery.
+-   **Advanced Mail**: Gửi mail SMTP hoặc Fallback EXE, hỗ trợ đính kèm ảnh Chart inline.
+-   **Enterprise API**: API Server quản lý Config và Trigger báo cáo.
 
 ## 📚 Tài liệu chi tiết
 
--   **[Cấu hình báo cáo (Schema & Config)](docs/guide_configuration.md)**
--   **[Kiến trúc Core System](docs/guide_architecture.md)**
--   **[Excel Adapter & Xử lý Template](docs/guide_excel_engine.md)**
--   **[Queue, API & Vận hành (Scaling)](docs/guide_queue_api.md)** (Updated)
+-   **[Hướng dẫn Cấu hình (Schema)](docs/guide_configuration.md)**
+-   **[Kiến trúc hệ thống (Architecture)](docs/guide_architecture.md)**
+-   **[Hướng dẫn Queue & Scaling](docs/guide_queue_api.md)**
+-   **[Snapshot Service (Deployment Guide)](docs/guide_snapshot_service.md)** (New): Hướng dẫn cài đặt service render ảnh trên Windows.
 
-## 🛠 Cài đặt & Sử dụng
+## 🛠 Cài đặt & Vận hành
 
-### 1. Yêu cầu
-
--   Node.js >= 16
--   MongoDB
-
-### 2. Cài đặt
+### 1. Report Engine (Node.js - Linux/Windows)
 
 ```bash
+# Cài đặt
 npm install
+
+# Chạy Scheduler (Producer)
+node src/app.js schedule ./configs
+
+# Chạy Worker (Consumer)
+node src/app.js worker
+
+# Chạy API
+node src/app.js api
 ```
 
-### 3. Vận hành (Production)
+### 2. Snapshot Service (C# - Windows Only)
 
-Trong môi trường thực tế, bạn cần chạy song song 3 services:
+Yêu cầu máy chủ Windows có cài Microsoft Office (Excel).
 
-1.  **SchedulerService** (Producer): Lên lịch & Bảo trì Queue.
-    ```bash
-    node src/app.js schedule ./configs
-    ```
-2.  **WorkerService** (Consumer): Xử lý job. Để chạy song song nhiều job, hãy bật nhiều process (hoặc dùng PM2).
-
-    ```bash
-    # Chạy 1 Worker
-    node src/app.js worker
-
-    # Chạy nhiều Worker (PM2 cluster mode)
-    pm2 start src/app.js --name "worker" -i 4 -- worker
-    ```
-
-3.  **ApiService**: Phục vụ Web UI.
-    ```bash
-    node src/app.js api
-    ```
-
-### 4. Chạy thủ công (Dev/Debug)
-
-Chạy ngay lập tức (không qua queue):
-
-```bash
-node src/app.js run ./configs/my-report-config.js
-```
+1.  Build project trong `src/snapshot-service/`.
+2.  Chạy `SnapshotService.exe` (Port mặc định: 7000).
+3.  Cấu hình Node.js kết nối: `SNAPSHOT_SERVICE_URL=http://<windows-ip>:7000`.
 
 ## 📂 Cấu trúc dự án
 
 ```
 report-engine/
 ├── src/
-│   ├── api/          # Express API Server
-│   ├── config/       # Logic load & validate config
-│   ├── core/         # Pipeline & Block Engine
-│   ├── excel/        # Excel Generator
-│   ├── mail/         # Mail Sender (SMTP + Fallback EXE)
-│   ├── mongo/        # MongoDB Executor & Audit Logger
-│   ├── queue/        # Job Queue Logic (with Recovery)
-│   ├── rawdata/      # Quản lý dataset
-│   ├── render/       # HTML & Image Renderers
-│   ├── scheduler/    # Lập lịch & Maintenance Task
-│   ├── worker.js     # Worker Job Consumer
-│   └── app.js        # Entry point
-├── docs/             # Tài liệu dự án
-└── output/           # Folder chứa file kết quả
+│   ├── api/              # Express API Server
+│   ├── core/             # Pipeline & Snapshot Client
+│   ├── excel/            # Excel Generator
+│   ├── mail/             # Mail Sender (SMTP/Fallback)
+│   ├── mongo/            # DB & Audit
+│   ├── queue/            # Persistent Job Queue
+│   ├── snapshot-service/ # (C#) Source code Snapshot Service
+│   └── worker.js         # Worker entry point
+├── docs/                 # Tài liệu hướng dẫn
+└── output/               # Kết quả báo cáo
 ```

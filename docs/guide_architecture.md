@@ -1,45 +1,33 @@
 # Kiến trúc & Luồng xử lý
 
-Tài liệu này mô tả cách Report Engine hoạt động "dưới nắp capo".
+## 1. High-Level Architecture (Hybrid)
 
-## 1. High-Level Architecture (Updated)
-
-Hệ thống hoạt động theo mô hình **Producer-Consumer**:
+Hệ thống hoạt động theo mô hình Hybrid (Node.js + C#) để tận dụng sức mạnh của cả hai:
 
 ```
-[Scheduler] ---> [MongoDB Queue] ---> [Worker] ---> [Pipeline]
-     ^                                                  |
-     |                                                  v
-[API Server] -----------------------------------> [Audit Logs]
+[Cron Scheduler] --> [MongoDB Queue] --> [Node.js Worker] --(HTTP/7000)--> [C# Snapshot Service]
+                                              |                                   |
+                                              |                                [Excel COM]
+                                              v                                   |
+                                         [Email/SMTP] <--(Image/PNG)--------------|
 ```
 
-## 2. Luồng xử lý chi tiết
+## 2. Các thành phần chính
 
-### Giai đoạn 1: Scheduling (Producer)
+-   **Report Engine (Node.js)**: Orchestrator chính. Quản lý Data, Logic, Excel Generation (Data Filling).
+-   **Snapshot Service (C# .NET)**: Worker chuyên dụng chạy trên Windows. Chỉ làm nhiệm vụ mở file Excel đã có data và chụp ảnh các Chart.
 
-1.  **Scheduler** đọc config, đặt lịch Cron.
-2.  Khi đến giờ, Scheduler gọi `JobQueue.addJob()`.
-3.  Một document (Job) được tạo trong collection `job_queue` với trạng thái `pending`.
+## 3. Luồng xử lý chi tiết (Updated)
 
-### Giai đoạn 2: Execution (Consumer)
+1.  **Worker (Node)** nhận job.
+2.  **Worker** fetch data Mongo -> Tạo file Excel (dùng `exceljs`).
+3.  **Worker** quét thấy config có `render: "image"`.
+4.  **Worker** gửi request (POST) kèm đường dẫn file Excel sang **Snapshot Service**.
+5.  **Snapshot Service** (Windows) mở Excel (Background), export Chart ra file ảnh PNG, trả về OK.
+6.  **Worker** đọc file ảnh, đính kèm vào Email (Inline Attachments).
+7.  **Worker** gửi mail hoàn tất.
 
-1.  **Worker** liên tục polling (hoặc change stream) collection `job_queue`.
-2.  Tìm job `pending`, chuyển sang `processing` (Atomic Lock).
-3.  Khởi tạo **ReportPipeline** với config từ Job.
-4.  pipeline chạy qua các bước:
-    -   **Audit Start**: Ghi log vào `report_run_logs`.
-    -   **Data Fetching**: Lấy dữ liệu MongoDB (có Retry).
-    -   **Excel**: Tạo file báo cáo.
-    -   **Render**: Tạo nội dung Email.
-    -   **Mail**: Gửi email.
-    -   **Audit End**: Cập nhật log thành Success/Failed.
-5.  Worker cập nhật Job thành `completed` hoặc `failed`.
+## 4. Scaling
 
-## 3. Core Modules (Updated)
-
--   `src/queue/job-queue.js`: Quản lý thao tác với Queue (Add, Get Next, Complete, Fail).
--   `src/mongo/audit-logger.js`: Ghi nhật ký chạy báo cáo phục vụ tra cứu lịch sử.
--   `src/worker.js`: Vòng lặp vô hạn của Consumer.
--   `src/api/server.js`: Express Server phục vụ Web UI.
-
-Các module cũ (`Pipeline`, `ExcelGenerator`, `BlockEngine`) vẫn giữ nguyên chức năng cốt lõi là xử lý logic nghiệp vụ một khi được Worker kích hoạt.
+-   **Node.js Workers**: Scale thoải mái (N process).
+-   **Snapshot Service**: Scale bằng cách chạy nhiều instance trên nhiều server Windows khác nhau (cần Load Balancer hoặc cấu hình IP riêng cho từng nhóm worker).

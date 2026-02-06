@@ -8,30 +8,23 @@ Tài liệu này ghi nhận trạng thái phát triển và lộ trình tiếp t
 
 ### ✅ Đã hoàn thành (Done)
 
--   **Core Engine**: Config Loader, MongoDB Aggregation, Excel Generator (.xlsx/.xlsb), Render Block Engine.
--   **Scheduler**: Cron-based scheduling.
--   **Database Queue**: MongoDB-based Job Queue với khả năng Scaling.
--   **Mail System**: SMTP (Nodemailer) & Fallback EXE.
--   **Resiliency**: Retry Mechanism, Queue Recovery, Persistent Logs.
--   **API Server**: Express API.
+-   **Core Engine**: Config Loader, Mongo Pipeline, Excel Generator.
+-   **Queue System**: MongoDB Persistent Queue, Recovery, Scaling.
+-   **Mail System**: SMTP, Fallback EXE, và **Inline Chart Images**.
+-   **Snapshot Service**: Microservice C# hỗ trợ render chart từ Excel chuẩn 100%.
+-   **API Server**: Backend cho Web UI.
 
 ---
 
 ## 2. Roadmap tiếp theo
 
-### Phase 2.1: Snapshot Service (Excel Chart Rendering) - **IN PROGRESS**
+### Phase 4: Full Web UI (Frontend) - **NEXT**
 
--   **Kiến trúc**: Microservice chạy trên Windows Server, sử dụng .NET Framework 4.8.
--   **Công nghệ**: C# + Excel COM Interop.
--   **Nhiệm vụ**: Nhận file Excel -> Mở bằng Excel -> Export Chart ra ảnh -> Trả về cho Node.js Engine.
--   **Giao tiếp**: HTTP API (Node.js gọi Localhost hoặc Server IP).
+-   [ ] **Dashboard**: Giao diện quản lý báo cáo (React/Vue).
+-   [ ] **Config Editor**: Trình soạn thảo cấu hình JSON trực quan.
+-   [ ] **Job Monitor**: Xem trạng thái Queue realtime.
 
-### Phase 4: Full Web UI (Frontend)
+### Phase 5: Production Readiness (DevOps)
 
--   [ ] Xây dựng giao diện Dashboard (React/Vue).
--   [ ] Config Builder & Preview.
-
-### Phase 5: Production Readiness
-
--   [ ] **Monitoring**: Prometheus/Grafana.
--   [ ] **Installer**: Đóng gói toàn bộ (Node.js + C# Service) thành 1 bộ cài Windows (MSI).
+-   [ ] **Monitoring**: Prometheus/Grafana dashboard cho Queue/Service.
+-   [ ] **CI/CD**: Pipeline build tự động cho cả Node.js và C#.

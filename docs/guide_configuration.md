@@ -2,80 +2,49 @@
 
 File cấu hình là "trái tim" của hệ thống này. Tất cả logic về lấy dữ liệu, xử lý Excel, vẽ biểu đồ và gửi mail đều được định nghĩa ở đây.
 
-Bạn có thể dùng file `.json` hoặc `.js` (nếu cần logic động).
+...
 
-## 1. Cấu trúc tổng quan
+## 3. Render Blocks (Nội dung Email)
 
-Một file config gồm các phần chính:
-
-```javascript
-module.exports = {
-  report_id: "daily_sales",
-  schedule: "0 8 * * *", // Cron format
-  timezone: "Asia/Ho_Chi_Minh",
-
-  // 1. Dữ liệu nguồn (MongoDB Pipeline)
-  datasets: [ ... ],
-
-  // 2. Cấu hình Excel (Template & Mapping)
-  excel: { ... },
-
-  // 3. Render Blocks (Nội dung Email)
-  render_blocks: [ ... ],
-
-  // 4. Cấu hình Gửi Mail (SMTP + Fallback)
-  mail: { ... }
-};
-```
-
-... (Các phần datasets, excel, render_blocks giữ nguyên như cũ) ...
-
-## 5. Mail Configuration (Updated)
-
-Cấu hình gửi email hỗ trợ 2 chế độ: **SMTP** và **Fallback EXE**.
+Phần này định nghĩa nội dung HTML body của email.
 
 ```javascript
-mail: {
-  // Người nhận
-  to: ["manager@example.com"],
-  cc: ["boss@example.com"],
-  subject: "Báo cáo ngày {{date}}",
+render_blocks: [
+    // 1. Render Bảng (Table)
+    {
+        id: 'table_1',
+        type: 'table',
+        render: 'html',
+        dataset: 'ds_sales',
+        order: 1,
+        options: {
+            headers: ['Sản phẩm', 'Doanh thu'],
+        },
+    },
 
-  // Đính kèm file Excel vừa tạo?
-  attach_excel: true,
-
-  // --- Option A: SMTP Standard ---
-  smtp: {
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    auth: {
-      user: "bot@example.com",
-      pass: "secret_password"
-    }
-  },
-
-  // --- Option B: Fallback EXE (Nếu SMTP lỗi) ---
-  fallback: {
-    enabled: true,
-    // Đường dẫn tới file EXE của bạn
-    command: "C:\\Tools\\SSOSender.exe",
-
-    // Tham số truyền vào EXE
-    // Hỗ trợ placeholders: {{to}}, {{subject}}, {{body_path}}, {{attach_path}}
-    args: [
-      "-t", "{{to}}",
-      "-s", "{{subject}}",
-      "-body", "{{body_path}}",   // Hệ thống tự tạo file HTML temp và điền path vào đây
-      "-attach", "{{attach_path}}"
-    ]
-  }
-}
+    // 2. Render Biểu đồ (Image) - Dùng Snapshot Service
+    {
+        id: 'chart_1',
+        type: 'chart',
+        render: 'image', // Bắt buộc
+        sheet: 'Summary', // Tên Sheet trong Excel
+        order: 2,
+        options: {
+            chartName: 'SalesChart', // Tên Chart trong Excel
+            align: 'center',
+            style: 'width: 600px;',
+        },
+    },
+];
 ```
 
-**Cơ chế hoạt động:**
+**Lưu ý về Biểu đồ (Image):**
 
-1.  Hệ thống thử gửi bằng **SMTP** trước.
-2.  Nếu SMTP thất bại (hoặc không cấu hình), hệ thống kiểm tra `fallback.enabled`.
-3.  Nếu Enabled, hệ thống ghi nội dung Email ra một file HTML tạm (`%TEMP%/mail_body_xxx.html`).
-4.  Gọi lệnh EXE với các tham số đã thay thế.
+-   Yêu cầu hệ thống đã cấu hình kết nối tới **Snapshot Service** (Windows).
+-   Công cụ sẽ tự động xuất ảnh chart từ Excel và nhúng vào email (`cid:chart_1`).
+
+...
+
+## 5. Mail Configuration
+
+(Đã cập nhật SMTP và Fallback, xem tài liệu trước)
