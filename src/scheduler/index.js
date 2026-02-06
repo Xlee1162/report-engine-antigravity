@@ -39,6 +39,9 @@ class Scheduler {
 					await this.scheduleReport(configPath);
 				}
 			}
+
+			// Start Maintenance Task
+			this.scheduleMaintenance();
 		} catch (error) {
 			logger.error('Failed to start scheduler', { error: error.message });
 		}
@@ -86,6 +89,24 @@ class Scheduler {
 				error: error.message,
 			});
 		}
+	}
+
+	/**
+	 * Schedule internal maintenance tasks
+	 */
+	scheduleMaintenance() {
+		// Run cleanup every 10 minutes
+		const ttl = parseInt(process.env.QUEUE_JOB_TTL) || 90;
+
+		logger.info(
+			`Scheduling Queue Maintenance (TTL: ${ttl}m) every 10 minutes.`
+		);
+
+		const task = cron.schedule('*/10 * * * *', async () => {
+			await jobQueue.cleanupStaleJobs(ttl);
+		});
+
+		this.tasks.push(task);
 	}
 
 	stop() {

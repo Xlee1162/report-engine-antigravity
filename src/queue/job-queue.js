@@ -121,6 +121,67 @@ class JobQueue {
 			});
 		}
 	}
+
+	/**
+	 * Cleanup stale jobs (Recovery)
+	 * @param {number} ttlMinutes
+	 */
+	async cleanupStaleJobs(ttlMinutes = 90) {
+		try {
+			const db = getDb();
+			const cutoffTime = new Date(Date.now() - ttlMinutes * 60000);
+
+			// 1. Fail stale PENDING jobs
+			const pendingResult = await db
+				.collection(this.collectionName)
+				.updateMany(
+					{
+						status: 'pending',
+						created_at: { $lt: cutoffTime },
+					},
+					{
+						$set: {
+							status: 'failed',
+							completed_at: new Date(),
+							error: `Timeout (Pending > ${ttlMinutes}m)`,
+						},
+					}
+				);
+
+			if (pendingResult.modifiedCount > 0) {
+				logger.warn(
+					`Cleaned up ${pendingResult.modifiedCount} stale PENDING jobs.`
+				);
+			}
+
+			// 2. Fail stale PROCESSING jobs (Stuck/Crashed workers)
+			const processingResult = await db
+				.collection(this.collectionName)
+				.updateMany(
+					{
+						status: 'processing',
+						started_at: { $lt: cutoffTime },
+					},
+					{
+						$set: {
+							status: 'failed',
+							completed_at: new Date(),
+							error: `Timeout (Processing > ${ttlMinutes}m)`,
+						},
+					}
+				);
+
+			if (processingResult.modifiedCount > 0) {
+				logger.warn(
+					`Cleaned up ${processingResult.modifiedCount} stale PROCESSING jobs.`
+				);
+			}
+		} catch (error) {
+			logger.error('Failed to run job queue cleanup', {
+				error: error.message,
+			});
+		}
+	}
 }
 
 module.exports = new JobQueue();

@@ -1,88 +1,81 @@
-# Hướng dẫn Cấu hình Báo cáo
+# Hướng dẫn Cấu hình Báo cáo (Config Guide)
 
-Mỗi báo cáo được định nghĩa bởi một file `.js` hoặc `.json`. Engine sẽ đọc file này để biết cần lấy dữ liệu gì, trình bày ra sao và gửi cho ai.
+File cấu hình là "trái tim" của hệ thống này. Tất cả logic về lấy dữ liệu, xử lý Excel, vẽ biểu đồ và gửi mail đều được định nghĩa ở đây.
 
-## Cấu trúc Cấu hình (Schema)
+Bạn có thể dùng file `.json` hoặc `.js` (nếu cần logic động).
 
-Một file config đầy đủ bao gồm các phần sau:
+## 1. Cấu trúc tổng quan
+
+Một file config gồm các phần chính:
 
 ```javascript
 module.exports = {
-    report_id: 'daily_production', // Mã báo cáo (duy nhất)
-    schedule: '0 8 * * *', // Cron: Chạy lúc 8:00 AM hàng ngày
-    timezone: 'Asia/Ho_Chi_Minh',
+  report_id: "daily_sales",
+  schedule: "0 8 * * *", // Cron format
+  timezone: "Asia/Ho_Chi_Minh",
 
-    // 1. Định nghĩa Dữ liệu (MongoDB)
-    datasets: [
-        {
-            name: 'summary_data', // Tên dataset dùng để tham chiếu sau này
-            collection: 'logs', // Collection trong MongoDB
-            // Pipeline Aggregation chuẩn của MongoDB
-            pipeline: [
-                { $match: { status: 'completed' } },
-                { $group: { _id: '$machine', qty: { $sum: '$quantity' } } },
-            ],
-        },
-    ],
+  // 1. Dữ liệu nguồn (MongoDB Pipeline)
+  datasets: [ ... ],
 
-    // 2. Định nghĩa Excel Output
-    excel: {
-        template: 'templates/daily_template.xlsx', // Đường dẫn template (optional)
-        dataset_map: [
-            {
-                dataset: 'summary_data', // Lấy dữ liệu từ dataset nào
-                sheet: 'Sheet1', // Ghi vào Sheet nào
-                start_cell: 'A2', // Ô bắt đầu ghi
-                include_header: false, // Có ghi dòng tiêu đề không?
-            },
-        ],
-    },
+  // 2. Cấu hình Excel (Template & Mapping)
+  excel: { ... },
 
-    // 3. Định nghĩa Nội dung Email (Render Blocks)
-    render_blocks: [
-        {
-            id: 'main_table',
-            type: 'table', // Loại: table | chart | mixed
-            render: 'html', // Mode: html | image
-            dataset: 'summary_data', // Dữ liệu để render
-            order: 1,
-        },
-    ],
+  // 3. Render Blocks (Nội dung Email)
+  render_blocks: [ ... ],
 
-    // 4. Cấu hình gửi Mail
-    mail: {
-        to: ['manager@example.com'],
-        subject: 'Báo cáo Sản xuất Hàng ngày',
-        attach_excel: true,
-    },
+  // 4. Cấu hình Gửi Mail (SMTP + Fallback)
+  mail: { ... }
 };
 ```
 
-## Giải thích chi tiết
+... (Các phần datasets, excel, render_blocks giữ nguyên như cũ) ...
 
-### 1. `datasets` (MongoDB Aggregation)
+## 5. Mail Configuration (Updated)
 
-Thay vì SQL, chúng ta dùng **Aggregation Pipeline**.
+Cấu hình gửi email hỗ trợ 2 chế độ: **SMTP** và **Fallback EXE**.
 
--   Engine sẽ thực thi pipeline này và lưu kết quả vào bộ nhớ với tên `name`.
--   Có thể dùng tham số động (ví dụ `{{date}}`) nếu Engine hỗ trợ inject runtime params (tính năng nâng cao).
+```javascript
+mail: {
+  // Người nhận
+  to: ["manager@example.com"],
+  cc: ["boss@example.com"],
+  subject: "Báo cáo ngày {{date}}",
 
-### 2. `excel` (Excel Generator)
+  // Đính kèm file Excel vừa tạo?
+  attach_excel: true,
 
--   **Template**:
-    -   Nếu là `.xlsx`: Engine dùng `exceljs` để mở và ghi dữ liệu.
-    -   Nếu là `.xlsb`: Engine kích hoạt chế độ **Opaque**. Chỉ copy file template sang output, **không** ghi dữ liệu vào (do hạn chế thư viện). Dữ liệu tính toán chỉ dùng để render mail.
--   **dataset_map**: Ánh xạ dữ liệu vào file Excel.
+  // --- Option A: SMTP Standard ---
+  smtp: {
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    auth: {
+      user: "bot@example.com",
+      pass: "secret_password"
+    }
+  },
 
-### 3. `render_blocks` (Trình bày)
+  // --- Option B: Fallback EXE (Nếu SMTP lỗi) ---
+  fallback: {
+    enabled: true,
+    // Đường dẫn tới file EXE của bạn
+    command: "C:\\Tools\\SSOSender.exe",
 
-Đây là phần cốt lõi của "Block-Based Framework". Nội dung email là tập hợp các block được xếp chồng lên nhau.
+    // Tham số truyền vào EXE
+    // Hỗ trợ placeholders: {{to}}, {{subject}}, {{body_path}}, {{attach_path}}
+    args: [
+      "-t", "{{to}}",
+      "-s", "{{subject}}",
+      "-body", "{{body_path}}",   // Hệ thống tự tạo file HTML temp và điền path vào đây
+      "-attach", "{{attach_path}}"
+    ]
+  }
+}
+```
 
--   `type: 'table'`: Render dữ liệu thành HTML Table.
--   `type: 'chart'`: (Hiện tại) Render placeholder hoặc ảnh (nếu tich hợp tool chụp ảnh).
--   `render: 'html'`: Tối ưu cho email client.
+**Cơ chế hoạt động:**
 
-### 4. `mail`
-
--   Block `to`, `cc`, `bcc` hỗ trợ mảng các email.
--   `attach_excel`: Tự động đính kèm file Excel đã tạo ở bước trên.
+1.  Hệ thống thử gửi bằng **SMTP** trước.
+2.  Nếu SMTP thất bại (hoặc không cấu hình), hệ thống kiểm tra `fallback.enabled`.
+3.  Nếu Enabled, hệ thống ghi nội dung Email ra một file HTML tạm (`%TEMP%/mail_body_xxx.html`).
+4.  Gọi lệnh EXE với các tham số đã thay thế.

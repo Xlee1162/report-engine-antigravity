@@ -5,18 +5,20 @@ Report Engine Framework là một hệ thống **Config-Driven** (điều khiể
 ## 🚀 Tính năng chính
 
 -   **Config-Driven**: Mọi logic nằm trong file JSON/JS config.
--   **MongoDB Aggregation**: Xử lý dữ liệu bằng Pipeline mạnh mẽ.
+-   **MongoDB Aggregation**: Xử lý dữ liệu bằng Pipeline mạnh mẽ (có Retry).
 -   **Excel Engine**: Hỗ trợ template `.xlsx` (điền data) và `.xlsb` (opaque copy).
--   **Job Queue (New)**: Hàng đợi công việc sử dụng MongoDB (`job_queue`), đảm bảo không mất job khi restart.
--   **Enterprise API (New)**: API Server để xem/sửa cấu hình và kích hoạt báo cáo từ Web UI.
+-   **Job Queue**: Hàng đợi MongoDB (`job_queue`) bền vững, tự động phục hồi job treo (**Auto Recovery**).
+-   **Horizontal Scaling**: Hỗ trợ chạy nhiều Worker song song để xử lý đồng thời.
+-   **Advanced Mail**: Gửi mail qua SMTP hoặc tự động **Fallback** sang EXE ngoài (hỗ trợ SSO) nếu SMTP lỗi.
+-   **Enterprise API**: API Server để xem/sửa cấu hình và kích hoạt báo cáo từ Web UI.
 -   **Persistent Logs**: Lưu lịch sử chạy vào DB để truy vết.
 
 ## 📚 Tài liệu chi tiết
 
 -   **[Cấu hình báo cáo (Schema & Config)](docs/guide_configuration.md)**
--   **[Kiến trúc Core System](docs/guide_architecture.md)** (Updated)
+-   **[Kiến trúc Core System](docs/guide_architecture.md)**
 -   **[Excel Adapter & Xử lý Template](docs/guide_excel_engine.md)**
--   **[Scheduler & Queue & API](docs/guide_queue_api.md)** (New): Hướng dẫn vận hành hệ thống Queue/Worker và sử dụng API.
+-   **[Queue, API & Vận hành (Scaling)](docs/guide_queue_api.md)** (Updated)
 
 ## 🛠 Cài đặt & Sử dụng
 
@@ -35,15 +37,21 @@ npm install
 
 Trong môi trường thực tế, bạn cần chạy song song 3 services:
 
-1.  **Scheduler** (Producer): Lên lịch và đẩy job vào Queue.
+1.  **SchedulerService** (Producer): Lên lịch & Bảo trì Queue.
     ```bash
     node src/app.js schedule ./configs
     ```
-2.  **Worker** (Consumer): Lấy job từ Queue và thực thi (có thể chạy nhiều workers).
+2.  **WorkerService** (Consumer): Xử lý job. Để chạy song song nhiều job, hãy bật nhiều process (hoặc dùng PM2).
+
     ```bash
+    # Chạy 1 Worker
     node src/app.js worker
+
+    # Chạy nhiều Worker (PM2 cluster mode)
+    pm2 start src/app.js --name "worker" -i 4 -- worker
     ```
-3.  **API Server**: Phục vụ Web UI.
+
+3.  **ApiService**: Phục vụ Web UI.
     ```bash
     node src/app.js api
     ```
@@ -65,12 +73,12 @@ report-engine/
 │   ├── config/       # Logic load & validate config
 │   ├── core/         # Pipeline & Block Engine
 │   ├── excel/        # Excel Generator
-│   ├── mail/         # Mail Renderer
+│   ├── mail/         # Mail Sender (SMTP + Fallback EXE)
 │   ├── mongo/        # MongoDB Executor & Audit Logger
-│   ├── queue/        # Job Queue Logic
+│   ├── queue/        # Job Queue Logic (with Recovery)
 │   ├── rawdata/      # Quản lý dataset
 │   ├── render/       # HTML & Image Renderers
-│   ├── scheduler/    # Lập lịch (Cron)
+│   ├── scheduler/    # Lập lịch & Maintenance Task
 │   ├── worker.js     # Worker Job Consumer
 │   └── app.js        # Entry point
 ├── docs/             # Tài liệu dự án

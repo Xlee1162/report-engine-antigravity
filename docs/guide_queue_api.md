@@ -1,21 +1,32 @@
 # Hướng dẫn: Queue & API System
 
-Report Engine Framework V2 chuyển sang kiến trúc **Producer-Consumer** sử dụng MongoDB làm hàng đợi (Queue). Điều này giúp hệ thống bền vững hơn (Persistent Queue) so với việc chạy trực tiếp in-memory.
+Report Engine Framework V2 chuyển sang kiến trúc **Producer-Consumer** sử dụng MongoDB làm hàng đợi (Queue). Điều này giúp hệ thống bền vững hơn (Persistent Queue) và hỗ trợ **Horizontal Scaling**.
 
 ---
 
 ## 1. Hệ thống Queue (`job_queue`)
 
-### Kiến trúc
+### Kiến trúc & Scaling
 
--   **Producer (Scheduler)**: Khi đến giờ chạy (theo Cron), Scheduler **không** chạy báo cáo ngay. Thay vào đó, nó tạo một bản ghi Job (status: `pending`) vào collection `job_queue` trong MongoDB.
--   **Consumer (Worker)**: Một process riêng biệt (Worker) liên tục quét DB tìm job `pending`. Khi thấy, nó lock job (status: `processing`) và gọi Pipeline để thực thi.
--   **Persistence**: Mọi job được lưu trong DB. Nếu server restart, job chưa làm xong sẽ vẫn còn đó để xử lý tiếp (cần logic reset job treo - _future feature_).
+-   **Producer (Scheduler)**: Chỉ có nhiệm vụ tạo job. Rất nhẹ.
+-   **Consumer (Worker)**: Thực thi logic nặng (Excel, Zip, Mail).
+    -   **Scaling**: Bạn có thể bật **N** Worker process song song. Nhờ cơ chế `Atomic Lock` của MongoDB, các worker sẽ tự động chia việc mà không tranh chấp.
+    -   _Khuyến nghị_: Chạy số lượng Worker tương đương số Core CPU nếu tác vụ nặng về tính toán.
+
+### Cơ chế Tự phục hồi (Recovery)
+
+Hệ thống có tích hợp sẵn "Janitor" (người dọn dẹp) chạy trong Scheduler:
+
+-   **Pending Timeout**: Nếu job chờ quá 90 phút (do worker chết hoặc quá tải) -> Đánh dấu Failed.
+-   **Processing Timeout**: Nếu job đang chạy quá 90 phút (do worker crash/stuck) -> Đánh dấu Failed.
+
+Tùy chỉnh thời gian timeout bằng env var `QUEUE_JOB_TTL`.
 
 ### Lệnh vận hành
 
--   Chạy Scheduler (chỉ đẩy job): `node src/app.js schedule ./configs`
--   Chạy Worker (chỉ xử lý job): `node src/app.js worker`
+-   Chạy Scheduler: `node src/app.js schedule ./configs`
+-   Chạy 1 Worker: `node src/app.js worker`
+-   Chạy 4 Workers (Production): `pm2 start src/app.js --name "worker" -i 4 -- worker`
 
 ---
 
@@ -25,43 +36,4 @@ Hệ thống cung cấp REST API để tích hợp với Web UI hoặc các hệ
 
 **Khởi động:** `node src/app.js api` (Port mặc định: 3000)
 
-### Endpoints
-
-#### 2.1. Quản lý Config
-
--   **GET `/api/configs`**
-
-    -   Mô tả: Lấy danh sách tất cả file config trong thư mục `./configs`.
-    -   Response: `["report1.json", "report2.js"]`
-
--   **GET `/api/configs/:filename`**
-
-    -   Mô tả: Đọc nội dung file config.
-    -   Response: JSON Content của file config.
-
--   **PUT `/api/configs/:filename`**
-    -   Mô tả: Cập nhật nội dung config.
-    -   _Lưu ý: Chỉ hỗ trợ update file `.json`. File `.js` chỉ đọc._
-    -   Body: JSON Config mới.
-
-#### 2.2. Lịch sử & Kích hoạt
-
--   **GET `/api/history`**
-
-    -   Mô tả: Lấy nhật ký chạy từ `report_run_logs`.
-    -   Params: `?limit=20&skip=0`
-    -   Response: Danh sách log (start_time, status, error...).
-
--   **POST `/api/run/:filename`**
-    -   Mô tả: **Trigger Now**. Kích hoạt chạy báo cáo ngay lập tức bằng cách đẩy một Job mới vào Queue.
-    -   Response: `{ "message": "Job queued", "jobId": "..." }`
-
----
-
-## 3. Câu hỏi thường gặp
-
--   **Tại sao dùng MongoDB làm Queue?**
-    -   Để tận dụng hạ tầng có sẵn.
-    -   Dữ liệu đồng nhất và bền vững.
--   **Tôi có thể chạy nhiều Worker không?**
-    -   Có (`job_queue` hỗ trợ atomic lock). Tuy nhiên, cần chú ý cấu hình MongoDB connection pool nếu scale quá lớn.
+(Thông tin API endpoint giữ nguyên như phiên bản trước...)

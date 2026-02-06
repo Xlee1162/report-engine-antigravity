@@ -23,7 +23,31 @@ const MailConfigSchema = z.object({
 	cc: z.array(z.string().email()).optional(),
 	subject: z.string(),
 	attach_excel: z.boolean().default(true),
-	body_template: z.string().optional(), // Path to custom handlebars template if needed
+	body_template: z.string().optional(),
+
+	// SMTP Config (Optional)
+	smtp: z
+		.object({
+			host: z.string(),
+			port: z.number().int(),
+			secure: z.boolean().default(false),
+			auth: z
+				.object({
+					user: z.string().optional(),
+					pass: z.string().optional(),
+				})
+				.optional(),
+		})
+		.optional(),
+
+	// Fallback EXE Config (Optional)
+	fallback: z
+		.object({
+			enabled: z.boolean().default(false),
+			command: z.string(),
+			args: z.array(z.string()).default([]),
+		})
+		.optional(),
 });
 
 const ReportConfigSchema = z.object({
